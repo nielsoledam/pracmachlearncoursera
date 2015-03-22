@@ -88,7 +88,8 @@ img {
 <div id="the-assignment" class="section level2">
 <h2>The assignment</h2>
 <p>First we load the data, eliminate variables that are all NAs and variables that are not measurements (or outcome):</p>
-<pre class="r"><code>setwd(&quot;/Users/nielsoledam/Desktop/Coursera/pracmachlearn_assignment&quot;)
+<pre class="r"><code>library(dplyr)
+setwd(&quot;/Users/nielsoledam/Desktop/Coursera/pracmachlearn_assignment&quot;)
 # download.file(&quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;, &quot;pml-training.csv&quot;, method=&quot;curl&quot;)
 dataset &lt;- read.csv(&quot;pml-training.csv&quot;, header=TRUE, na.strings = c(&quot;&quot;, &quot; &quot;,&quot;NA&quot;,&quot;#DIV/0!&quot;), stringsAsFactors=FALSE)
 dataset$classe &lt;- as.factor(dataset$classe)
@@ -112,6 +113,7 @@ testing2 &lt;- predict(preObj, testing[, -ncol(training)])
 testing2$classe &lt;- testing$classe</code></pre>
 <p>We now use <code>train()</code> with Random Forest for making a model using all the measurement variables:</p>
 <pre class="r"><code>modFit &lt;- train(classe~., method=&quot;rf&quot;, data=training2)
+save(modFit, file = &quot;model.rda&quot;) # Save for possible reuse in a later RStudio session
 modFit$finalModel
 
 Call:
@@ -120,15 +122,29 @@ Call:
                      Number of trees: 500
 No. of variables tried at each split: 59
 
-        OOB estimate of  error rate: 0.76%
+        OOB estimate of  error rate: 0.77%
 Confusion matrix:
      A    B    C    D    E class.error
-A 3899    7    0    0    0 0.001792115
-B   21 2623   14    0    0 0.013167795
-C    0   17 2372    7    0 0.010016694
-D    0    0   23 2228    1 0.010657194
-E    0    1    5    9 2510 0.005940594</code></pre>
-<p>As we can see the model fit the out of sample data very well, with a Out of Bag estimate of only 0.76%. So we would expect the model to predict new data very well.</p>
+A 3901    3    0    0    2 0.001280082
+B   25 2624    9    0    0 0.012791573
+C    0   20 2367    9    0 0.012103506
+D    1    1   22 2226    2 0.011545293
+E    0    1    4    7 2513 0.004752475</code></pre>
+<p>As we can see the model seem fit the out of sample data very well, with a Out of Bag estimate of only 0.77%. So we would expect the model to predict new data very well. In order to test this assumption we now cross-validate the model with the testing data set and look at the resulting confusion matrix:</p>
+<pre class="r"><code>predictions &lt;- predict(modFit, newdata=testing2)
+cm &lt;- confusionMatrix(predictions, testing2$classe)
+cm$table; cm$overall[1]
+
+          Reference
+Prediction    A    B    C    D    E
+         A 1671    4    0    0    0
+         B    1 1126   19    0    0
+         C    2    9 1006   11    1
+         D    0    0    1  952    3
+         E    0    0    0    1 1078
+Accuracy 
+0.991164 </code></pre>
+<p>As it can be seen, the accuracy of the cross-validation is 99.1% which is very good and confirm that our model is not overfitting the training dataset. So it is with confidence, we now use the model to predict the final 20 data samples.</p>
 </div>
 <div id="prediction-and-submission-of-the-20-data-samples" class="section level2">
 <h2>Prediction and submission of the 20 data samples</h2>
