@@ -1,0 +1,127 @@
+---
+title: "Assignment – Practical Machine Learning Week 3"
+author: "Niels Ole Dam"
+date: "22. mar. 2015"
+output: html_document
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Purpose of this assignment
+
+The purpose of this assignment is to do the following:
+
+* Predict the manner in which 6 participants did the exercise. 
+This is the "classe" variable in the training set. You may use any of the other variables to predict with.
+* Describe how the model was built.
+* Describe how cross validation was used.
+* Describe what I think the expected out of sample error is.
+* Describe why I made the choices I did.
+* Use the prediction model to predict 20 different test cases. 
+
+## The assignment
+
+First we load the data, eliminate variables that are all NAs and variables that are not measurements (or outcome):
+
+```{r eval=FALSE}
+library(dplyr)
+setwd("/Users/nielsoledam/Desktop/Coursera/pracmachlearn_assignment")
+# download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "pml-training.csv", method="curl")
+dataset <- read.csv("pml-training.csv", header=TRUE, na.strings = c("", " ","NA","#DIV/0!"), stringsAsFactors=FALSE)
+dataset$classe <- as.factor(dataset$classe)
+dataset <- dataset[,colSums(is.na(dataset)) != nrow(dataset)]
+dataset <- select(dataset, roll_belt:classe)
+```
+
+Then we remove all variables with near zero variance using `nearZeroVar()` and make a training and a testing set - the latter to be used for cross validation. We choose to split the data 70/30 because it is only a medium sized data set. After that we get at look at the data:
+
+```{r eval=FALSE}
+library(caret)
+nz <- nearZeroVar(dataset)
+dataset <- dataset[, -nz] 
+inTrain <- createDataPartition(y=dataset$classe, p=0.7, list=FALSE)
+training <- dataset[inTrain, ]
+testing <- dataset[-inTrain, ]
+View(training)
+```
+
+As we can see that the data set contains a lot of missing values, we now preprocess the training data set imputing the missing values using the k nearest neighbour method. We also use the same preprocessing on the testing data (and remember to set the seed in order to achieve the same randomization for both data partitions):
+
+```{r eval=FALSE}
+set.seed(12345)
+library(RANN)
+preObj <- preProcess(training[, -ncol(training)], method="knnImpute")
+training2 <- predict(preObj, training[, -ncol(training)])
+training2$classe <- training$classe
+testing2 <- predict(preObj, testing[, -ncol(training)])
+testing2$classe <- testing$classe
+```
+
+We now use `train()` with Random Forest for making a model using all the measurement variables:
+
+```{r eval=FALSE}
+modFit <- train(classe~., method="rf", data=training2)
+modFit$finalModel
+
+Call:
+ randomForest(x = x, y = y, mtry = param$mtry) 
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 59
+
+        OOB estimate of  error rate: 0.76%
+Confusion matrix:
+     A    B    C    D    E class.error
+A 3899    7    0    0    0 0.001792115
+B   21 2623   14    0    0 0.013167795
+C    0   17 2372    7    0 0.010016694
+D    0    0   23 2228    1 0.010657194
+E    0    1    5    9 2510 0.005940594
+```
+
+As we can see the model seem fit the out of sample data very well, with a Out of Bag estimate of only 0.76%. So we would expect the model to predict new data very well. In order to test this assumption we now cross-validate the model with the testing data set and look at the resulting confusion matrix:
+
+[NB Nået hertil !!!]
+
+```{r eval=FALSE}
+predictions <- predict(modFit, newdata=testing2)
+confusionMatrix(preditions, testing2$classe)
+
+[Indsæt confusionMatrix her!!!]
+```
+
+## Prediction and submission of the 20 data samples
+
+Now we load the 20 data samples to predict:
+
+```{r eval=FALSE}
+# download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "pml-testing.csv", method="curl")
+toPredict <- read.csv("pml-testing.csv", na.strings = c("", " ","NA","#DIV/0!"), stringsAsFactors=FALSE)
+
+# Keep only the variables that are also present in training dataset and add a classe variable
+toPredict <- toPredict[ , which(names(toPredict) %in% names(training))]
+toPredict$classe <- as.factor(NA)
+```
+
+And preprocess the data the same way as with the training set and then use our model to make the prediction and save the result as 20 seperate files:
+
+```{r eval=FALSE}
+toPredict2 <- predict(preObj, toPredict[, -ncol(toPredict)])
+answers <- as.character(predict(modFit, newdata=toPredict2))
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+} 
+pml_write_files(answers)
+
+```
+
+The 20 files are then uploaded to Coursera for evaluation.
+
+(And got all 20 predictions right! :-D )
